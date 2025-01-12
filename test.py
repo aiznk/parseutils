@@ -2,6 +2,25 @@ import parseutils as pu
 import unittest
 
 class Test(unittest.TestCase):
+	def test_parse_css_blocks(self):
+		src = """
+div {
+	margin: 1rem 2rem;
+	padding: 1rem;
+}
+p { font-size: 1rem; }
+
+header {
+	background: var(--color-bg);
+}
+"""
+		j, blocks = pu.parse_css_blocks(0, src, len(src))
+		self.assertEqual(j, 110)
+		self.assertEqual(blocks['div']['margin'], '1rem 2rem')
+		self.assertEqual(blocks['div']['padding'], '1rem')
+		self.assertEqual(blocks['p']['font-size'], '1rem')
+		self.assertEqual(blocks['header']['background'], 'var(--color-bg)')
+
 	def test_parse_css_block(self):
 		src = """a {}    """
 		j, ident, block = pu.parse_css_block(0, src, len(src))

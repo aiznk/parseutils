@@ -499,9 +499,69 @@ parse_css_block(PyObject* self, PyObject* args) {
     return result;
 }
 
+static PyObject *
+parse_css_blocks(PyObject* self, PyObject* args) {
+    Py_ssize_t i = 0;
+    PyObject *src = NULL;
+    Py_ssize_t len = 0;
+
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    PyObject *blocks = PyDict_New();
+    if (!blocks) {
+        return NULL;
+    }
+
+    for (; i < len; i++) {
+        #undef _BUF_SIZE
+        #define _BUF_SIZE 1024
+        Py_UCS4 ident[_BUF_SIZE] = {0};
+        size_t ident_len = 0;
+
+        PyObject *block = PyDict_New();
+        if (!block) {
+            Py_DECREF(blocks);
+            return NULL;
+        }
+
+        if (!_parse_css_block(
+            &i, src, len,
+            ident, _BUF_SIZE, &ident_len, block
+        )) {
+            Py_DECREF(blocks);
+            return NULL;
+        }
+
+        PyObject *oident = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, ident, ident_len);
+        if (!oident) {
+            Py_DECREF(blocks);
+            return NULL;
+        }
+
+        if (PyDict_SetItem(blocks, oident, block) < 0) {
+            Py_DECREF(blocks);
+            return NULL;
+        }
+    }
+
+    PyObject* result = PyTuple_New(2);
+    if (!result) {
+        Py_DECREF(blocks);
+        return NULL;
+    }
+
+    PyTuple_SET_ITEM(result, 0, PyLong_FromSsize_t(i));
+    PyTuple_SET_ITEM(result, 1, blocks);
+
+    return result;
+}
+
 static PyMethodDef MyMethods[] = {
     {"parse_key_value", parse_key_value, METH_VARARGS, "Parse key and value."},
     {"parse_css_block", parse_css_block, METH_VARARGS, "Parse CSS block."},
+    {"parse_css_blocks", parse_css_blocks, METH_VARARGS, "Parse CSS blocks."},
     {NULL, NULL, 0, NULL}
 };
 
