@@ -113,6 +113,7 @@ header {
 		self.kv_eq('abc="def"', 9, 'abc', 'def')
 		self.kv_eq('abc="  def  "', 13, 'abc', '  def  ')
 		self.kv_eq('abc="  \\"def  "', 15, 'abc', '  "def  ')
+		self.kv_eq("abc='def'", 9, 'abc', 'def')
 
 if __name__ == '__main__':
 	unittest.main()
