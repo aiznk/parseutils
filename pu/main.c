@@ -15,12 +15,27 @@ _is_ident_head(int c) {
 
 static inline bool
 _is_css_ident(int c) {
-    return (c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalnum(c));
+    return (c == ' ' || c == ':' || c == '>' || c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalnum(c));
 }
 
 static inline bool
 _is_css_ident_head(int c) {
-    return (c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalpha(c));
+    return (c == ':' || c == '>' || c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalpha(c));
+}
+
+static inline bool
+_is_css_key(int c) {
+    return (c == '_' || c == '-' || isalnum(c));
+}
+
+static inline bool
+_is_css_key_head(int c) {
+    return (c == '_' || c == '-' || isalpha(c));
+}
+
+static inline bool
+_is_css_block_name(int c) {
+    return (c == ':' || c == '>' || c == ' ' || c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalnum(c));
 }
 
 static void
@@ -90,6 +105,47 @@ _parse_css_ident(
             break;
         }
         if (_is_css_ident(c)) {
+            if (*buf_len >= buf_size-1) {
+                return false;
+            }
+            buf[*buf_len] = c;
+            (*buf_len)++;
+        } else {
+            break;
+        }
+    }
+
+    for (; *buf_len > 0; ) {
+        size_t k = *buf_len - 1;
+        if (!isspace(buf[k])) {
+            break;
+        }
+        (*buf_len)--;
+    }
+
+    buf[*buf_len] = 0;
+    *index = i;
+    return true;
+}
+
+static bool
+_parse_css_key(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 buf[],
+    size_t buf_size,
+    size_t *buf_len
+) {
+    Py_ssize_t i = *index;
+    *buf_len = 0;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == ':') {
+            break;
+        }
+        if (_is_css_key(c)) {
             if (*buf_len >= buf_size-1) {
                 return false;
             }
@@ -296,8 +352,8 @@ _parse_css_key_value(
 
     for (; i < len; i++) {
         int c = PyUnicode_READ_CHAR(src, i);
-        if (_is_css_ident_head(c)) {
-            if (!_parse_css_ident(&i, src, len, key, key_size, key_len)) {
+        if (_is_css_key_head(c)) {
+            if (!_parse_css_key(&i, src, len, key, key_size, key_len)) {
                 break;
             }
             _skip_sp(&i, src, len);
@@ -436,7 +492,7 @@ _parse_css_media_query_ident(
             dobreak = true;
             i++;
         }
-        
+
         if (*ident_len >= ident_size-1) {
             return false;
         }

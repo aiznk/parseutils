@@ -2,3 +2,4 @@
 venv_win/
 build/
 dist/
+__pycache__/

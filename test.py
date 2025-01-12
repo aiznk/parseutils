@@ -31,6 +31,14 @@ class Test(unittest.TestCase):
 
 	def test_parse_css_blocks(self):
 		src = """
+:root > #hoge {
+	font-size: 1rem;
+}
+"""
+		j, blocks = pu.parse_css_blocks(0, src, len(src))
+		self.assertEqual(blocks[':root > #hoge']['font-size'], '1rem')
+
+		src = """
 @media (max-width: 100px) {
 	div {
 		font-size: 1rem;
@@ -106,4 +114,5 @@ header {
 		self.kv_eq('abc="  def  "', 13, 'abc', '  def  ')
 		self.kv_eq('abc="  \\"def  "', 15, 'abc', '  "def  ')
 
-unittest.main()
+if __name__ == '__main__':
+	unittest.main()
