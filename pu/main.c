@@ -15,12 +15,12 @@ _is_ident_head(int c) {
 
 static inline bool
 _is_css_ident(int c) {
-    return (c == '.' || c == '#' || c == '_' || c == '-' || isalnum(c));
+    return (c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalnum(c));
 }
 
 static inline bool
 _is_css_ident_head(int c) {
-    return (c == '.' || c == '#' || c == '_' || c == '-' || isalpha(c));
+    return (c == '*' || c == '.' || c == '#' || c == '_' || c == '-' || isalpha(c));
 }
 
 static void
