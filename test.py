@@ -3,6 +3,19 @@ import unittest
 
 class Test(unittest.TestCase):
 	def test_parse_tag(self):
+		src = '<div href="hige" class=\'myclass\' id=123>content</div>'
+		j, tag_name, tag_type, attrs = pu.parse_tag(0, src, len(src))
+		self.assertEqual(j, 40)
+		self.assertEqual(tag_name, 'div')
+		self.assertEqual(tag_type, 'begin')
+		self.assertEqual(attrs['href'], 'hige')
+		self.assertEqual(attrs['class'], 'myclass')
+		self.assertEqual(attrs['id'], '123')
+		j, tag_name, tag_type, attrs = pu.parse_tag(j, src, len(src))
+		self.assertEqual(j, 53)
+		self.assertEqual(tag_name, 'div')
+		self.assertEqual(tag_type, 'end')
+
 		src = '<a href="hige" class=\'myclass\' id=1>content</a>'
 		j, tag_name, tag_type, attrs = pu.parse_tag(0, src, len(src))
 		self.assertEqual(j, 36)
