@@ -3,40 +3,60 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-static void
-_skip_sp(Py_ssize_t *i, PyObject *src, Py_ssize_t srclen)
-{
-    Py_ssize_t j = *i;
+static inline bool
+_is_ident(int c) {
+    return (c == '_' || c == '-' || isalnum(c));
+}
 
-    while (j < srclen) {
-        Py_UCS4 c = PyUnicode_READ_CHAR(src, j);
+static inline bool
+_is_ident_head(int c) {
+    return (c == '_' || c == '-' || isalpha(c));
+}
+
+static inline bool
+_is_css_ident(int c) {
+    return (c == '.' || c == '#' || c == '_' || c == '-' || isalnum(c));
+}
+
+static inline bool
+_is_css_ident_head(int c) {
+    return (c == '.' || c == '#' || c == '_' || c == '-' || isalpha(c));
+}
+
+static void
+_skip_sp(Py_ssize_t *index, PyObject *src, Py_ssize_t srclen)
+{
+    Py_ssize_t i = *index;
+
+    while (i < srclen) {
+        Py_UCS4 c = PyUnicode_READ_CHAR(src, i);
         if (!Py_UNICODE_ISSPACE(c)) {
             break;
         }
-        j++;
+        i++;
     }
 
-    *i = j;
+    *index = i;
 }
 
 static bool
 _parse_ident(
-    Py_ssize_t *i,
+    Py_ssize_t *index,
     PyObject *src,
     Py_ssize_t len,
     Py_UCS4 buf[],
     size_t buf_size,
     size_t *buf_len
 ) {
-    Py_ssize_t j = *i;
+    Py_ssize_t i = *index;
     *buf_len = 0;
 
-    for (; j < len; j++) {
-        int c = PyUnicode_READ_CHAR(src, j);
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
         if (c == '\n') {
             break;
         }
-        if (c == '_' || c == '-' || isalnum(c)) {
+        if (_is_ident(c)) {
             if (*buf_len >= buf_size-1) {
                 return false;
             }
@@ -48,13 +68,46 @@ _parse_ident(
     }
 
     buf[*buf_len] = 0;
-    *i = j;
+    *index = i;
+    return true;
+}
+
+static bool
+_parse_css_ident(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 buf[],
+    size_t buf_size,
+    size_t *buf_len
+) {
+    Py_ssize_t i = *index;
+    *buf_len = 0;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == '\n') {
+            break;
+        }
+        if (_is_css_ident(c)) {
+            if (*buf_len >= buf_size-1) {
+                return false;
+            }
+            buf[*buf_len] = c;
+            (*buf_len)++;
+        } else {
+            break;
+        }
+    }
+
+    buf[*buf_len] = 0;
+    *index = i;
     return true;
 }
 
 static bool
 _parse_value(
-    Py_ssize_t *i,
+    Py_ssize_t *index,
     PyObject *src,
     Py_ssize_t len,
     Py_UCS4 buf[],
@@ -62,12 +115,12 @@ _parse_value(
     size_t *buf_len
 ) {
     bool ret = true;
-    Py_ssize_t j = *i;
+    Py_ssize_t i = *index;
     int m = 0;
     *buf_len = 0;
 
-    for (; j < len; j++) {
-        int c = PyUnicode_READ_CHAR(src, j);
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
 
         switch (m) {
         case 0:
@@ -103,12 +156,12 @@ _parse_value(
             break;
         case 100:
             if (c == '\\') {
-                j++;
-                if (j >= len) {
+                i++;
+                if (i >= len) {
                     ret = false;
                     goto done;
                 }
-                c = PyUnicode_READ_CHAR(src, j);
+                c = PyUnicode_READ_CHAR(src, i);
 
                 if (*buf_len >= buf_size-1) {
                     ret = false;
@@ -117,7 +170,7 @@ _parse_value(
                 buf[*buf_len] = c;
                 (*buf_len)++;
             } else if (c == '"') {
-                j++;
+                i++;
                 goto done;
             } else {
                 if (*buf_len >= buf_size-1) {
@@ -132,12 +185,154 @@ _parse_value(
     }
 
 done:
-    *i = j;
+    *index = i;
     buf[*buf_len] = 0;
     return ret;
 }
 
-static PyObject *parse_key_value(PyObject* self, PyObject* args) {
+static bool
+_parse_css_value(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 buf[],
+    size_t buf_size,
+    size_t *buf_len
+) {
+    bool ret = true;
+    Py_ssize_t i = *index;
+    int m = 0;
+    *buf_len = 0;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+
+        switch (m) {
+        case 0:
+            if (c == ';' || c == '}') {
+                goto done;
+            } else {
+                if (*buf_len >= buf_size-1) {
+                    ret = false;
+                    goto done;
+                }
+                buf[*buf_len] = c;
+                (*buf_len)++;                
+            }
+            break;
+        }
+    }
+
+done:
+    *index = i;
+    buf[*buf_len] = 0;
+    return ret;
+}
+
+static bool
+_parse_key_value(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 key[],
+    size_t key_size,
+    size_t *key_len,
+    Py_UCS4 val[],
+    size_t val_size,
+    size_t *val_len,
+    int sep,  // '=' or ':'
+    int end  // 0 or ';'
+) {
+    Py_ssize_t i = *index;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == end) {
+            break;
+        }
+
+        if (_is_ident_head(c)) {
+            if (!_parse_ident(&i, src, len, key, key_size, key_len)) {
+                break;
+            }
+            _skip_sp(&i, src, len);
+            if (i >= len) {
+                break;
+            }
+
+            c = PyUnicode_READ_CHAR(src, i);
+            if (c == sep) {
+                i++;
+                _skip_sp(&i, src, len);
+                if (!_parse_value(&i, src, len, val, val_size, val_len)) {
+                    break;
+                }
+                if (end) {
+                    for (; i < len; i++) {
+                        c = PyUnicode_READ_CHAR(src, i);
+                        if (c == end) {
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    *index = i;
+    return true;
+}
+
+static bool
+_parse_css_key_value(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 key[],
+    size_t key_size,
+    size_t *key_len,
+    Py_UCS4 val[],
+    size_t val_size,
+    size_t *val_len
+) {
+    Py_ssize_t i = *index;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (_is_css_ident_head(c)) {
+            if (!_parse_css_ident(&i, src, len, key, key_size, key_len)) {
+                break;
+            }
+            _skip_sp(&i, src, len);
+            if (i >= len) {
+                break;
+            }
+
+            c = PyUnicode_READ_CHAR(src, i);
+            if (c == ':') {
+                i++;
+                _skip_sp(&i, src, len);
+                if (!_parse_css_value(&i, src, len, val, val_size, val_len)) {
+                    break;
+                }
+                for (; i < len; i++) {
+                    c = PyUnicode_READ_CHAR(src, i);
+                    if (c == ';' || c == '}') {
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    *index = i;
+    return true;
+}
+
+static PyObject *
+parse_key_value(PyObject* self, PyObject* args) {
     Py_ssize_t i = 0;
     PyObject *src = NULL;
     Py_ssize_t len = 0;
@@ -153,31 +348,13 @@ static PyObject *parse_key_value(PyObject* self, PyObject* args) {
     size_t key_len = 0;
     size_t val_len = 0;
 
-    for (; i < len; i++) {
-        int c = PyUnicode_READ_CHAR(src, i);
-        if (c == '\n') {
-            break;
-        }
-
-        if (c == '_' || c == '-' || isalpha(c)) {
-            if (!_parse_ident(&i, src, len, key, sizeof key, &key_len)) {
-                break;
-            }
-            _skip_sp(&i, src, len);
-            if (i >= len) {
-                break;
-            }
-
-            c = PyUnicode_READ_CHAR(src, i);
-            if (c == '=') {
-                i++;
-                _skip_sp(&i, src, len);
-                if (!_parse_value(&i, src, len, val, sizeof val, &val_len)) {
-                    break;
-                }
-                break;
-            }
-        }
+    if (!_parse_key_value(
+        &i, src, len, 
+        key, _BUF_SIZE, &key_len,
+        val, _BUF_SIZE, &val_len,
+        '=', 0
+    )) {
+        return NULL;
     }
 
     PyObject* result = PyTuple_New(3);
@@ -192,8 +369,139 @@ static PyObject *parse_key_value(PyObject* self, PyObject* args) {
     return result;
 }
 
+static bool
+_parse_css_block_content(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    PyObject *dict
+) {
+    Py_ssize_t i = *index;
+    i++;  // '{'
+
+    for (; i < len; i++) {
+        _skip_sp(&i, src, len);
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == '}') {
+            i++;
+            break;
+        }
+
+        #undef _BUF_SIZE
+        #define _BUF_SIZE 1024
+        Py_UCS4 key[_BUF_SIZE] = {0};
+        Py_UCS4 val[_BUF_SIZE] = {0};
+        size_t key_len = 0;
+        size_t val_len = 0;
+
+        if (!_parse_css_key_value(
+            &i, src, len,
+            key, _BUF_SIZE, &key_len,
+            val, _BUF_SIZE, &val_len
+        )) {
+            return false;
+        }
+        _skip_sp(&i, src, len);
+        c = PyUnicode_READ_CHAR(src, i);
+        if (c == '}') {
+            i++;
+            break;
+        }
+
+        PyObject *okey = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, key, key_len);
+        PyObject *oval = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+
+        if (PyDict_SetItem(dict, okey, oval) < 0) {
+            Py_DECREF(okey);
+            Py_DECREF(oval);
+            return false;
+        }
+    }
+
+    *index = i;
+    return true;
+}
+
+static bool
+_parse_css_block(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 ident[],
+    size_t ident_size,
+    size_t *ident_len,
+    PyObject *dict
+) {
+    Py_ssize_t i = *index;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (_is_css_ident_head(c)) {
+            if (!_parse_css_ident(&i, src, len, ident, ident_size, ident_len)) {
+                return false;
+            }
+            _skip_sp(&i, src, len);
+            c = PyUnicode_READ_CHAR(src, i);
+            if (c == '{') {
+                if (!_parse_css_block_content(&i, src, len, dict)) {
+                    return false;
+                }
+                break;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    *index = i;
+    return true;
+}
+
+static PyObject *
+parse_css_block(PyObject* self, PyObject* args) {
+    Py_ssize_t i = 0;
+    PyObject *src = NULL;
+    Py_ssize_t len = 0;
+
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    PyObject *dict = PyDict_New();
+    if (!dict) {
+        return NULL;
+    }
+
+    #undef _BUF_SIZE
+    #define _BUF_SIZE 1024
+    Py_UCS4 ident[_BUF_SIZE] = {0};
+    size_t ident_len = 0;
+
+    if (!_parse_css_block(
+        &i, src, len,
+        ident, _BUF_SIZE, &ident_len,
+        dict
+    )) {
+        Py_DECREF(dict);
+        return NULL;
+    }
+
+    PyObject* result = PyTuple_New(3);
+    if (!result) {
+        Py_DECREF(dict);
+        return NULL;
+    }
+
+    PyTuple_SET_ITEM(result, 0, PyLong_FromSsize_t(i));
+    PyTuple_SET_ITEM(result, 1, PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, ident, ident_len));
+    PyTuple_SET_ITEM(result, 2, dict); 
+
+    return result;
+}
+
 static PyMethodDef MyMethods[] = {
-    {"parse_key_value", parse_key_value, METH_VARARGS, "Parse keyword arguments."},
+    {"parse_key_value", parse_key_value, METH_VARARGS, "Parse key and value."},
+    {"parse_css_block", parse_css_block, METH_VARARGS, "Parse CSS block."},
     {NULL, NULL, 0, NULL}
 };
 
