@@ -419,6 +419,113 @@ _parse_css_block_content(
 }
 
 static bool
+_parse_css_media_query_ident(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 ident[],
+    size_t ident_size,
+    size_t *ident_len    
+) {
+    Py_ssize_t i = *index;
+    bool dobreak = false;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == ')') {
+            dobreak = true;
+            i++;
+        }
+        
+        if (*ident_len >= ident_size-1) {
+            return false;
+        }
+        ident[*ident_len] = c;
+        (*ident_len)++;
+
+        if (dobreak) {
+            break;
+        }
+    }
+
+    *index = i;
+    return true;
+}
+
+static bool
+_parse_css_media_query_block(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 ident[],
+    size_t ident_size,
+    size_t *ident_len,
+    PyObject *dict
+) {
+    Py_ssize_t i = *index;
+    int m = 0;
+    #undef _BUF_SIZE
+    #define _BUF_SIZE 1024
+    Py_UCS4 tmp[_BUF_SIZE] = {0};
+    size_t tmp_len = 0;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        switch (m) {
+        case 0:
+            if (c == '@') {
+                if (!_parse_css_media_query_ident(&i, src, len, ident, ident_size, ident_len)) {
+                    return false;
+                }
+                i--;
+                m = 10;
+            }
+            break;
+        case 10:
+            if (c == '{') {
+                m = 20;
+            }
+            break;
+        case 20:
+            if (_is_css_ident_head(c)) {
+                if (!_parse_css_ident(&i, src, len, tmp, _BUF_SIZE, &tmp_len)) {
+                }
+                _skip_sp(&i, src, len);
+                c = PyUnicode_READ_CHAR(src, i);
+                if (c == '{') {
+                    PyObject *content = PyDict_New();
+                    if (!content) {
+                        return false;
+                    }
+                    if (!_parse_css_block_content(&i, src, len, content)) {
+                        Py_DECREF(content);
+                        return false;
+                    }
+                    PyObject *okey = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, tmp, tmp_len);
+                    if (!okey) {
+                        Py_DECREF(content);
+                        return false;
+                    }
+                    if (PyDict_SetItem(dict, okey, content) < 0) {
+                        Py_DECREF(content);
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            } else if (c == '}') {
+                goto done;
+            }
+            break;
+        }
+    }
+
+done:
+    *index = i;
+    return true;
+}
+
+static bool
 _parse_css_block(
     Py_ssize_t *index,
     PyObject *src,
@@ -510,35 +617,60 @@ parse_css_blocks(PyObject* self, PyObject* args) {
         return NULL;
     }
 
+    #undef _BUF_SIZE
+    #define _BUF_SIZE 1024
+    Py_UCS4 ident[_BUF_SIZE] = {0};
+    size_t ident_len = 0;
+
     for (; i < len; i++) {
-        #undef _BUF_SIZE
-        #define _BUF_SIZE 1024
-        Py_UCS4 ident[_BUF_SIZE] = {0};
-        size_t ident_len = 0;
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (_is_css_ident_head(c)) {
+            PyObject *block = PyDict_New();
+            if (!block) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
 
-        PyObject *block = PyDict_New();
-        if (!block) {
-            Py_DECREF(blocks);
-            return NULL;
-        }
+            if (!_parse_css_block(
+                &i, src, len,
+                ident, _BUF_SIZE, &ident_len, block
+            )) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
 
-        if (!_parse_css_block(
-            &i, src, len,
-            ident, _BUF_SIZE, &ident_len, block
-        )) {
-            Py_DECREF(blocks);
-            return NULL;
-        }
+            PyObject *oident = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, ident, ident_len);
+            if (!oident) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
 
-        PyObject *oident = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, ident, ident_len);
-        if (!oident) {
-            Py_DECREF(blocks);
-            return NULL;
-        }
+            if (PyDict_SetItem(blocks, oident, block) < 0) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
+        } else if (c == '@') {
+            PyObject *block = PyDict_New();
+            if (!block) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
 
-        if (PyDict_SetItem(blocks, oident, block) < 0) {
-            Py_DECREF(blocks);
-            return NULL;
+            if (!_parse_css_media_query_block(
+                &i, src, len,
+                ident, _BUF_SIZE, &ident_len, block
+            )) {
+                Py_DECREF(blocks);
+            }
+            PyObject *oident = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, ident, ident_len);
+            if (!oident) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
+            if (PyDict_SetItem(blocks, oident, block) < 0) {
+                Py_DECREF(blocks);
+                return NULL;
+            }
         }
     }
 

@@ -32,12 +32,18 @@ class Test(unittest.TestCase):
 	def test_parse_css_blocks(self):
 		src = """
 @media (max-width: 100px) {
+	div {
+		font-size: 1rem;
+	}
+	p {
+		padding: 2rem;
+	}
 }
 """
 		j, blocks = pu.parse_css_blocks(0, src, len(src))
-		# self.assertEqual(j, 61)
-		print(blocks)
-		# self.assertEqual(blocks['@media (max-width: 100px)']['div']['font-size'], '1rem')
+		self.assertEqual(j, 85)
+		self.assertEqual(blocks['@media (max-width: 100px)']['div']['font-size'], '1rem')
+		self.assertEqual(blocks['@media (max-width: 100px)']['p']['padding'], '2rem')
 
 		src = """
 * { font-size: 1rem; }
