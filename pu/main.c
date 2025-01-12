@@ -488,9 +488,8 @@ _parse_css_media_query_ident(
 
     for (; i < len; i++) {
         int c = PyUnicode_READ_CHAR(src, i);
-        if (c == ')') {
-            dobreak = true;
-            i++;
+        if (c == '{') {
+            break;
         }
 
         if (*ident_len >= ident_size-1) {
@@ -498,10 +497,14 @@ _parse_css_media_query_ident(
         }
         ident[*ident_len] = c;
         (*ident_len)++;
+    }
 
-        if (dobreak) {
+    for (; *ident_len > 0; ) {
+        size_t k = *ident_len - 1;
+        if (!isspace(ident[k])) {
             break;
         }
+        (*ident_len)--;
     }
 
     *index = i;
