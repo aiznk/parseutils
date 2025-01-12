@@ -73,6 +73,8 @@ header {
 		self.assertEqual(v, val)
 
 	def test_parse_key_value(self):
+		self.kv_eq('abc = 31.24', 11, 'abc', '31.24')
+		self.kv_eq('abc=31.24', 9, 'abc', '31.24')
 		self.kv_eq('abc=def', 7, 'abc', 'def')
 		self.kv_eq('_a-b_c=_d-e_f', 13, '_a-b_c', '_d-e_f')
 		self.kv_eq('abc = def', 9, 'abc', 'def')
