@@ -2,6 +2,16 @@ import parseutils as pu
 import unittest
 
 class Test(unittest.TestCase):
+	def test_parse_section(self):
+		src = '[123]'
+		j, section_name = pu.parse_section(0, src, len(src))
+		self.assertEqual(j, 5)
+		self.assertEqual(section_name, '123')
+		src = '[  abc.def  ]'
+		j, section_name = pu.parse_section(0, src, len(src))
+		self.assertEqual(j, 13)
+		self.assertEqual(section_name, 'abc.def')
+
 	def test_parse_tag(self):
 		src = '<div href="hige" class=\'myclass\' id=123>content</div>'
 		j, tag_name, tag_type, attrs = pu.parse_tag(0, src, len(src))

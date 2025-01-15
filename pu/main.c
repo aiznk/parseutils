@@ -882,11 +882,114 @@ parse_tag(PyObject* self, PyObject* args) {
     return result;    
 }
 
+bool
+_parse_section(
+    Py_ssize_t *index, 
+    PyObject *src, 
+    Py_ssize_t len,
+    Py_UCS4 section_name[], 
+    size_t section_name_size, 
+    size_t *section_name_len,
+    int beg_brace,  // '['
+    int end_brace  // ']'
+) {
+    Py_ssize_t i = *index;
+    *section_name_len = 0;
+    int m = 0;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        switch (m) {
+        case 0:
+            if (c == beg_brace) {
+                m = 10; 
+            }
+            break;
+        case 10:
+            if (Py_UNICODE_ISSPACE(c)) {
+                // pass
+            } else if (c == end_brace) {
+                goto done;
+            } else {
+                if (*section_name_len >= section_name_size-1) {
+                    return false;
+                }
+                section_name[*section_name_len] = c;
+                (*section_name_len)++;
+                m = 20;
+            }
+            break;
+        case 20:
+            if (Py_UNICODE_ISSPACE(c)) {
+                m = 30;
+            } else if (c == end_brace) {
+                goto done;
+            } else {
+                if (*section_name_len >= section_name_size-1) {
+                    return false;
+                }
+                section_name[*section_name_len] = c;
+                (*section_name_len)++;                
+            }
+            break;
+        case 30:
+            if (c == end_brace) {
+                goto done;
+            }
+            break;
+        }
+    }
+
+done:
+    i++;
+    *index = i;
+    return true;
+}
+
+PyObject *
+parse_section(PyObject *self, PyObject *args) {
+    Py_ssize_t i;
+    PyObject *src;
+    Py_ssize_t len;
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    #undef _BUF_SIZE
+    #define _BUF_SIZE 1024
+    Py_UCS4 section_name[_BUF_SIZE];
+    Py_ssize_t section_name_len = 0;
+
+    if (!_parse_section(
+        &i, src, len,
+        section_name, _BUF_SIZE, &section_name_len,
+        '[', ']')) {
+        return NULL;
+    }
+
+    PyObject *tuple = PyTuple_New(2);
+    if (!tuple) {
+        return NULL;
+    }
+
+    PyObject *osection_name = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, section_name, section_name_len);
+    if (!osection_name) {
+        Py_DECREF(tuple);
+        return NULL;
+    }
+
+    PyTuple_SET_ITEM(tuple, 0, PyLong_FromSsize_t(i));
+    PyTuple_SET_ITEM(tuple, 1, osection_name);
+
+    return tuple;
+}
+
 static PyMethodDef MyMethods[] = {
     {"parse_key_value", parse_key_value, METH_VARARGS, "Parse key and value."},
     {"parse_css_block", parse_css_block, METH_VARARGS, "Parse CSS block."},
     {"parse_css_blocks", parse_css_blocks, METH_VARARGS, "Parse CSS blocks."},
     {"parse_tag", parse_tag, METH_VARARGS, "Parse tag."},
+    {"parse_section", parse_section, METH_VARARGS, "Parse section."},
     {NULL, NULL, 0, NULL}
 };
 
