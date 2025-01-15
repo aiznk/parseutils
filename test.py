@@ -2,6 +2,14 @@ import parseutils as pu
 import unittest
 
 class Test(unittest.TestCase):
+	def test_parse_list(self):
+		src = '[1, 3.14, "abc", \'def\']'
+		j, lis = pu.parse_list(0, src, len(src))
+		self.assertEqual(lis[0], '1')
+		self.assertEqual(lis[1], '3.14')
+		self.assertEqual(lis[2], 'abc')
+		self.assertEqual(lis[3], 'def')
+
 	def test_ini(self):
 		src = '''
 [abc]

@@ -1,4 +1,5 @@
 *egg-info/
+venv/
 venv_win/
 build/
 dist/
