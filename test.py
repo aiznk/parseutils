@@ -8,6 +8,11 @@ class Test(unittest.TestCase):
 		self.assertEqual(d['hige'], '123')
 		self.assertEqual(d['moe'], '223')
 
+		src = '{"hige":123,\'moe\':\'223\'}'
+		j, d = pu.parse_dict(0, src, len(src))
+		self.assertEqual(d['hige'], '123')
+		self.assertEqual(d['moe'], '223')
+
 	def test_parse_list(self):
 		src = '[1, 3.14, "abc", \'def\']'
 		j, lis = pu.parse_list(0, src, len(src))
