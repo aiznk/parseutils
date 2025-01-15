@@ -289,6 +289,57 @@ done:
 }
 
 static bool
+_parse_string(
+    Py_ssize_t *index,
+    PyObject *src,
+    Py_ssize_t len,
+    Py_UCS4 buf[],
+    size_t buf_size,
+    size_t *buf_len
+) {
+    Py_ssize_t i = *index;
+    int m = 0;
+    int quote = 0;
+    *buf_len = 0;
+
+    for (; i < len; i++) {
+        _skip_sp(&i, src, len);
+        int c = PyUnicode_READ_CHAR(src, i);
+        // printf("m[%d] c[%c]\n", m, c);
+
+        switch (m) {
+        case 0:
+            if (c == '"' || c == '\'') {
+                quote = c;
+                m = 10;
+            } else if (Py_UNICODE_ISSPACE(c)) {
+                // pass
+            } else {
+                return false;
+            }
+            break;
+        case 10:
+            if (c == quote) {
+                i++;
+                goto done;
+            } else {
+                if (*buf_len >= buf_size-1) {
+                    return false;
+                }
+                buf[*buf_len] = c;
+                (*buf_len)++;                
+            }
+            break;
+        }
+    }
+
+done:
+    buf[*buf_len] = 0;
+    *index = i;
+    return true;
+}
+
+static bool
 _parse_key_value(
     Py_ssize_t *index,
     PyObject *src,
@@ -1020,6 +1071,7 @@ _parse_list(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis, int
         _skip_sp(&i, src, len);
         c = PyUnicode_READ_CHAR(src, i);
         if (c == end_bracket) {
+            i++;
             goto done;
         } else if (c == ',') {
             // pass
@@ -1062,6 +1114,111 @@ parse_list(PyObject *self, PyObject *args) {
     return tuple;
 }
 
+static bool
+_parse_dict(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *dict, int beg_brace, int end_brace) {
+    Py_ssize_t i = *index;
+    #undef _BUF_SIZE
+    #define _BUF_SIZE 1024
+    Py_UCS4 val[_BUF_SIZE] = {0};
+    size_t val_len = 0;
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == beg_brace) {
+            i++;
+            _skip_sp(&i, src, len);
+            break;
+        }
+    }
+
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        _skip_sp(&i, src, len);
+
+        if (!_parse_string(&i, src, len, val, _BUF_SIZE, &val_len)) {
+            return false;
+        }
+
+        // read key
+        PyObject *okey = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+        if (!okey) {
+            return false;
+        }
+
+        _skip_sp(&i, src, len);
+        c = PyUnicode_READ_CHAR(src, i);
+        if (c == ':') {
+            i++;
+        } else {
+            return false;
+        }
+
+        // read value
+        if (!_parse_value(&i, src, len, val, _BUF_SIZE, &val_len, ",}")) {
+            return false;
+        }
+
+        PyObject *oval = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+        if (!oval) {
+            return false;
+        }
+
+        // set key and value
+        if (PyDict_SetItem(dict, okey, oval) < 0) {
+            Py_DECREF(okey);
+            Py_DECREF(oval);
+            return false;
+        }
+
+        _skip_sp(&i, src, len);
+        c = PyUnicode_READ_CHAR(src, i);
+        if (c == ',') {
+            i++;
+            _skip_sp(&i, src, len);
+        } else if (c == end_brace) {
+            i++;
+            goto done;
+        }
+
+        i--;
+    }
+
+done:
+    *index = i;
+    return true;
+}
+
+PyObject *
+parse_dict(PyObject *self, PyObject *args) {
+    Py_ssize_t i;
+    PyObject *src;
+    Py_ssize_t len;
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    PyObject *dict = PyDict_New();
+    if (!dict) {
+        return NULL;
+    }
+
+    if (!_parse_dict(&i, src, len, dict, '{', '}')) {
+        Py_DECREF(dict);
+        return NULL;
+    }
+
+    PyObject *tuple = PyTuple_New(2);
+    if (!tuple) {
+        Py_DECREF(dict);
+        return NULL;
+    }
+
+    PyTuple_SET_ITEM(tuple, 0, PyLong_FromSsize_t(i));
+    PyTuple_SET_ITEM(tuple, 1, dict);
+
+    return tuple;
+}
+
 static PyMethodDef MyMethods[] = {
     {"parse_key_value", parse_key_value, METH_VARARGS, "Parse key and value."},
     {"parse_css_block", parse_css_block, METH_VARARGS, "Parse CSS block."},
@@ -1069,6 +1226,7 @@ static PyMethodDef MyMethods[] = {
     {"parse_tag", parse_tag, METH_VARARGS, "Parse tag."},
     {"parse_section", parse_section, METH_VARARGS, "Parse section."},
     {"parse_list", parse_list, METH_VARARGS, "Parse list."},
+    {"parse_dict", parse_dict, METH_VARARGS, "Parse list."},
     {NULL, NULL, 0, NULL}
 };
 
