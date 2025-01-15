@@ -2,6 +2,27 @@ import parseutils as pu
 import unittest
 
 class Test(unittest.TestCase):
+	def test_ini(self):
+		src = '''
+[abc]
+def = "123"
+ghi = 3.14
+
+[ABC]
+hoge = moge
+'''
+		i = 0
+		srclen = len(src)
+		while i < srclen:
+			c = src[i]
+			if c == '[':
+				i, name = pu.parse_section(i, src, srclen)
+				print(f'section[{name}]')
+			elif c.isalpha():
+				i, key, val = pu.parse_key_value(i, src, srclen)
+				print(f'key[{key}] val[{val}]')
+			i += 1
+
 	def test_parse_section(self):
 		src = '[123]'
 		j, section_name = pu.parse_section(0, src, len(src))
