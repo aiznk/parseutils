@@ -249,6 +249,31 @@ done:
     return ret;
 }
 
+static PyObject *
+_parse_ovalue(Py_ssize_t *index, PyObject *src, Py_ssize_t len, const char *end) {
+    Py_ssize_t i = *index;
+    #undef _BUF_SIZE 
+    #define _BUF_SIZE 1024
+    Py_UCS4 val[_BUF_SIZE] = {0};
+    size_t val_len = 0;
+    PyObject *o = NULL;
+
+    if (!_parse_value(
+        &i, src, len,
+        val, _BUF_SIZE, &val_len,
+        end)) {
+        return NULL;
+    }
+
+    o = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+    if (!o) {
+        return NULL;
+    }
+
+    *index = i;
+    return o;
+}
+
 static bool
 _parse_css_value(
     Py_ssize_t *index,
@@ -1037,10 +1062,6 @@ parse_section(PyObject *self, PyObject *args) {
 static bool
 _parse_list(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis, int beg_bracket, int end_bracket) {
     Py_ssize_t i = *index;
-    #undef _BUF_SIZE
-    #define _BUF_SIZE 1024
-    Py_UCS4 val[_BUF_SIZE] = {0};
-    size_t val_len = 0;
 
     for (; i < len; i++) {
         int c = PyUnicode_READ_CHAR(src, i);
@@ -1055,11 +1076,7 @@ _parse_list(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis, int
         int c = PyUnicode_READ_CHAR(src, i);
         _skip_sp(&i, src, len);
 
-        if (!_parse_value(&i, src, len, val, _BUF_SIZE, &val_len, ",]")) {
-            return false;
-        }
-
-        PyObject *oval = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+        PyObject *oval = _parse_ovalue(&i, src, len, ",]");
         if (!oval) {
             return false;
         }
@@ -1154,11 +1171,7 @@ _parse_dict(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *dict, in
         }
 
         // read value
-        if (!_parse_value(&i, src, len, val, _BUF_SIZE, &val_len, ",}")) {
-            return false;
-        }
-
-        PyObject *oval = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+        PyObject *oval = _parse_ovalue(&i, src, len, ",}");
         if (!oval) {
             return false;
         }
