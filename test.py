@@ -27,15 +27,25 @@ hoge = moge
 '''
 		i = 0
 		srclen = len(src)
+		names = []
+		datas = []
 		while i < srclen:
 			c = src[i]
 			if c == '[':
 				i, name = pu.parse_section(i, src, srclen)
-				print(f'section[{name}]')
+				names.append(name)
 			elif c.isalpha():
 				i, key, val = pu.parse_key_value(i, src, srclen)
-				print(f'key[{key}] val[{val}]')
+				datas.append((key, val))
 			i += 1
+		self.assertEqual(names[0], 'abc')
+		self.assertEqual(datas[0][0], 'def')
+		self.assertEqual(datas[0][1], '123')
+		self.assertEqual(datas[1][0], 'ghi')
+		self.assertEqual(datas[1][1], '3.14')
+		self.assertEqual(names[1], 'ABC')
+		self.assertEqual(datas[2][0], 'hoge')
+		self.assertEqual(datas[2][1], 'moge')
 
 	def test_parse_section(self):
 		src = '[123]'
