@@ -1330,7 +1330,7 @@ parse_dict(PyObject *self, PyObject *args) {
 }
 
 static bool
-_parse_csv_line(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis) {
+_parse_csv_line(Py_ssize_t *index, PyObject *src, Py_ssize_t len, int sep, PyObject *lis) {
     Py_ssize_t i = *index;
 
     for (; i < len; i++) {
@@ -1359,7 +1359,7 @@ _parse_csv_line(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis)
 
             for (; i < len; i++) {
                 c1 = PyUnicode_READ_CHAR(src, i);
-                if (c1 == ',' ) {
+                if (c1 == sep) {
                     break;
                 } else if (c1 == '\r' || c1 == '\n') {
                     i--;
@@ -1378,7 +1378,8 @@ parse_csv_line(PyObject *self, PyObject *args) {
     Py_ssize_t i;
     PyObject *src;
     Py_ssize_t len;
-    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+    PyObject *osep;
+    if (!PyArg_ParseTuple(args, "nOnO", &i, &src, &len, &osep)) {
         return NULL;
     }
 
@@ -1387,7 +1388,8 @@ parse_csv_line(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    if (!_parse_csv_line(&i, src, len, lis)) {
+    const char *ssep = PyUnicode_AsUTF8(osep);
+    if (!_parse_csv_line(&i, src, len, ssep[0], lis)) {
         Py_DECREF(lis);
         return NULL;
     }

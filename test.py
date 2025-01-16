@@ -4,18 +4,18 @@ import unittest
 class Test(unittest.TestCase):
 	def test_parse_csv_line(self):
 		src = '123\n223\r\n323'
-		j, row = pu.parse_csv_line(0, src, len(src))
+		j, row = pu.parse_csv_line(0, src, len(src), ',')
 		self.assertEqual(j, 4)
 		self.assertEqual(row[0], 123)
-		j, row = pu.parse_csv_line(j, src, len(src))
+		j, row = pu.parse_csv_line(j, src, len(src), ',')
 		self.assertEqual(j, 9)
 		self.assertEqual(row[0], 223)
-		j, row = pu.parse_csv_line(j, src, len(src))
+		j, row = pu.parse_csv_line(j, src, len(src), ',')
 		self.assertEqual(j, 13)
 		self.assertEqual(row[0], 323)
 
 		src = '123,"223 \nabc" ,3.14'
-		j, row = pu.parse_csv_line(0, src, len(src))
+		j, row = pu.parse_csv_line(0, src, len(src), ',')
 		self.assertEqual(row[0], 123)
 		self.assertEqual(row[1], '223 \nabc')
 		self.assertEqual(row[2], 3.14)
@@ -28,7 +28,7 @@ abc,def,ghi
 		rows = []
 		srclen = len(src)
 		while i < srclen:
-			i, row = pu.parse_csv_line(i, src, srclen)
+			i, row = pu.parse_csv_line(i, src, srclen, ',')
 			rows.append(row)
 
 		self.assertEqual(rows[0][0], 123)
