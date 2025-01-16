@@ -10,6 +10,13 @@ i, lis = pu.parse_list(0, src, len(src))
 print(lis)  # [111, '222', 3.14]
 ```
 
+## Install
+
+```
+python setup.py build
+python setup.py install
+```
+
 ## License
 
 MIT
