@@ -2,7 +2,7 @@
 
 Utility for parse strings.
 
-```py:
+```python
 import parseutils as pu 
 
 src = '[section]'
