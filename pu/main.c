@@ -1374,12 +1374,14 @@ _parse_csv_line(Py_ssize_t *index, PyObject *src, Py_ssize_t len, int sep, PyObj
 }
 
 PyObject *
-parse_csv_line(PyObject *self, PyObject *args) {
+parse_csv_line(PyObject *self, PyObject *args, PyObject *kwargs) {
     Py_ssize_t i;
     PyObject *src;
     Py_ssize_t len;
-    PyObject *osep;
-    if (!PyArg_ParseTuple(args, "nOnO", &i, &src, &len, &osep)) {
+    PyObject *osep = Py_None;
+    static char *kwlist[] = {"index", "src", "len", "sep", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "nOn|O", kwlist, &i, &src, &len, &osep)) {
         return NULL;
     }
 
@@ -1388,7 +1390,12 @@ parse_csv_line(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    const char *ssep = PyUnicode_AsUTF8(osep);
+    const char *ssep;
+    if (osep == Py_None) {
+        ssep = ",";
+    } else {
+        ssep = PyUnicode_AsUTF8(osep);
+    }
     if (!_parse_csv_line(&i, src, len, ssep[0], lis)) {
         Py_DECREF(lis);
         return NULL;
@@ -1414,7 +1421,7 @@ static PyMethodDef MyMethods[] = {
     {"parse_section", parse_section, METH_VARARGS, "Parse section."},
     {"parse_list", parse_list, METH_VARARGS, "Parse list."},
     {"parse_dict", parse_dict, METH_VARARGS, "Parse list."},
-    {"parse_csv_line", parse_csv_line, METH_VARARGS, "Parse CSV line."},
+    {"parse_csv_line", (PyCFunction) parse_csv_line, METH_VARARGS | METH_KEYWORDS, "Parse CSV line."},
     {NULL, NULL, 0, NULL}
 };
 
