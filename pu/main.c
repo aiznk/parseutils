@@ -3,6 +3,11 @@
 #include <ctype.h>
 #include <stdbool.h>
 
+static bool
+_parse_list(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis, int beg_bracket, int end_bracket);
+static bool
+_parse_dict(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *dict, int beg_brace, int end_brace);
+
 static inline bool
 _is_ident(int c) {
     return (c == '_' || c == '-' || isalnum(c));
@@ -258,16 +263,44 @@ _parse_ovalue(Py_ssize_t *index, PyObject *src, Py_ssize_t len, const char *end)
     size_t val_len = 0;
     PyObject *o = NULL;
 
-    if (!_parse_value(
-        &i, src, len,
-        val, _BUF_SIZE, &val_len,
-        end)) {
-        return NULL;
-    }
+    for (; i < len; i++) {
+        int c = PyUnicode_READ_CHAR(src, i);
+        if (c == '[') {
+            PyObject *lis = PyList_New(0);
+            if (!lis)  {
+                return NULL;
+            }
+            if (!_parse_list(&i, src, len, lis, '[', ']')) {
+                return NULL;
+            }
+            o = lis;
+            break;
+        } else if (c == '{') {
+            PyObject *dict = PyDict_New();
+            if (!dict) {
+                return NULL;
+            }
+            if (!_parse_dict(&i, src, len, dict, '{', '}')) {
+                return NULL;
+            }
+            o = dict;
+            break;
+        } else if (Py_UNICODE_ISSPACE(c)) {
+            // pass
+        } else {
+            if (!_parse_value(
+                &i, src, len,
+                val, _BUF_SIZE, &val_len,
+                end)) {
+                return NULL;
+            }
 
-    o = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
-    if (!o) {
-        return NULL;
+            o = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
+            if (!o) {
+                return NULL;
+            }            
+            break;
+        }
     }
 
     *index = i;
