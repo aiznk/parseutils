@@ -216,6 +216,8 @@ _parse_value(
                 } else if (c == '.') {
                     *type = _FLOAT;
                     ndot++;
+                } else {
+                    *type = _STR;
                 }
             }
             break;
@@ -304,6 +306,7 @@ ucs4_to_obj(Py_UCS4 ary[], size_t len, int type) {
         char* endptr;
         long value = strtol(buf, &endptr, 10);
         if (endptr == buf) {
+            printf("buf[%s]\n", buf);
             PyErr_SetString(PyExc_ValueError, "could not convert string to long");
             return NULL;
         }
@@ -354,8 +357,11 @@ _parse_ovalue(Py_ssize_t *index, PyObject *src, Py_ssize_t len, const char *end)
                 end, &type)) {
                 return NULL;
             }
-
-            o = ucs4_to_obj(val, val_len, type);
+            if (val_len) {
+                o = ucs4_to_obj(val, val_len, type);
+            } else {
+                o = PyUnicode_FromString("");
+            }
             break;
         }
     }
@@ -1323,6 +1329,81 @@ parse_dict(PyObject *self, PyObject *args) {
     return tuple;
 }
 
+static bool
+_parse_csv_line(Py_ssize_t *index, PyObject *src, Py_ssize_t len, PyObject *lis) {
+    Py_ssize_t i = *index;
+
+    for (; i < len; i++) {
+        int c1, c2;
+        c1 = c2 = 0;
+
+        c1 = PyUnicode_READ_CHAR(src, i);
+        if (i+1 < len) {
+            c2 = PyUnicode_READ_CHAR(src, i+1);
+        }
+
+        if (c1 == '\r' && c2 == '\n') {
+            i += 2;
+            break;
+        } else if (c1 == '\n') {
+            i++;
+            break;
+        } else {
+            PyObject *o = _parse_ovalue(&i, src, len, ",\n");
+            if (!o) {
+                return false;
+            }
+            if (PyList_Append(lis, o) < 0) {
+                return false;
+            }
+
+            for (; i < len; i++) {
+                c1 = PyUnicode_READ_CHAR(src, i);
+                if (c1 == ',' ) {
+                    break;
+                } else if (c1 == '\r' || c1 == '\n') {
+                    i--;
+                    break;
+                }
+            }
+        }
+    }
+
+    *index = i;
+    return true;
+}
+
+PyObject *
+parse_csv_line(PyObject *self, PyObject *args) {
+    Py_ssize_t i;
+    PyObject *src;
+    Py_ssize_t len;
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    PyObject *lis = PyList_New(0);
+    if (!lis) {
+        return NULL;
+    }
+
+    if (!_parse_csv_line(&i, src, len, lis)) {
+        Py_DECREF(lis);
+        return NULL;
+    }
+
+    PyObject *tuple = PyTuple_New(2);
+    if (!tuple) {
+        Py_DECREF(lis);
+        return NULL;
+    }
+
+    PyTuple_SET_ITEM(tuple, 0, PyLong_FromSsize_t(i));
+    PyTuple_SET_ITEM(tuple, 1, lis);
+
+    return tuple;
+}
+
 static PyMethodDef MyMethods[] = {
     {"parse_key_value", parse_key_value, METH_VARARGS, "Parse key and value."},
     {"parse_css_block", parse_css_block, METH_VARARGS, "Parse CSS block."},
@@ -1331,6 +1412,7 @@ static PyMethodDef MyMethods[] = {
     {"parse_section", parse_section, METH_VARARGS, "Parse section."},
     {"parse_list", parse_list, METH_VARARGS, "Parse list."},
     {"parse_dict", parse_dict, METH_VARARGS, "Parse list."},
+    {"parse_csv_line", parse_csv_line, METH_VARARGS, "Parse CSV line."},
     {NULL, NULL, 0, NULL}
 };
 

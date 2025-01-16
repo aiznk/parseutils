@@ -2,6 +2,46 @@ import parseutils as pu
 import unittest
 
 class Test(unittest.TestCase):
+	def test_parse_csv_line(self):
+		src = '123\n223\r\n323'
+		j, row = pu.parse_csv_line(0, src, len(src))
+		self.assertEqual(j, 4)
+		self.assertEqual(row[0], 123)
+		j, row = pu.parse_csv_line(j, src, len(src))
+		self.assertEqual(j, 9)
+		self.assertEqual(row[0], 223)
+		j, row = pu.parse_csv_line(j, src, len(src))
+		self.assertEqual(j, 13)
+		self.assertEqual(row[0], 323)
+
+		src = '123,"223 \nabc" ,3.14'
+		j, row = pu.parse_csv_line(0, src, len(src))
+		self.assertEqual(row[0], 123)
+		self.assertEqual(row[1], '223 \nabc')
+		self.assertEqual(row[2], 3.14)
+
+		src = '''123,223,323
+423,"523\r\nABC",623
+abc,def,ghi
+'''
+		i = 0
+		rows = []
+		srclen = len(src)
+		while i < srclen:
+			i, row = pu.parse_csv_line(i, src, srclen)
+			rows.append(row)
+
+		self.assertEqual(rows[0][0], 123)
+		self.assertEqual(rows[0][1], 223)
+		self.assertEqual(rows[0][2], 323)
+		self.assertEqual(rows[1][0], 423)
+		self.assertEqual(rows[1][1], "523\r\nABC")
+		self.assertEqual(rows[1][2], 623)
+		self.assertEqual(rows[2][0], 'abc')
+		self.assertEqual(rows[2][1], 'def')
+		self.assertEqual(rows[2][2], 'ghi')
+
+
 	def test_parse_dict(self):
 		src = '{ "hige": 123, \'moe\': \'223\'}'
 		j, d = pu.parse_dict(0, src, len(src))
@@ -60,7 +100,8 @@ hoge = moge
 			elif c.isalpha():
 				i, key, val = pu.parse_key_value(i, src, srclen)
 				datas.append((key, val))
-			i += 1
+			else:
+				i += 1
 		self.assertEqual(names[0], 'abc')
 		self.assertEqual(datas[0][0], 'def')
 		self.assertEqual(datas[0][1], '123')
