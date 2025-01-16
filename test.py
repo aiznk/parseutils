@@ -2,6 +2,16 @@ import parseutils as pu
 import unittest
 
 class Test(unittest.TestCase):
+	def test_skip_spaces(self):
+		src = '    123'
+		j = pu.skip_spaces(0, src, len(src))
+		self.assertEqual(j, 4)
+		
+	def test_skip_at_newline(self):
+		src = '123\n223'
+		j = pu.skip_at_newline(0, src, len(src))
+		self.assertEqual(j, 4)
+
 	def test_parse_csv_line(self):
 		src = '123\n223\r\n323'
 		j, row = pu.parse_csv_line(0, src, len(src), sep=',')

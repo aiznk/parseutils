@@ -1413,6 +1413,58 @@ parse_csv_line(PyObject *self, PyObject *args, PyObject *kwargs) {
     return tuple;
 }
 
+static void
+_skip_at_newline(Py_ssize_t *index, PyObject *src, Py_ssize_t len) {
+    Py_ssize_t i = *index;
+
+    for (; i < len; i++) {
+        int c1, c2;
+        c1 = c2 = 0;
+        c1 = PyUnicode_READ_CHAR(src, i);
+        if (i+1 < len) {
+            c2 = PyUnicode_READ_CHAR(src, i+1);
+        }
+
+        if (c1 == '\r' && c2 == '\n') {
+            i += 2;
+            break;
+        } else if (c1 == '\n') {
+            i++;
+            break;
+        }
+    }
+
+    *index = i;
+}
+
+PyObject *
+skip_at_newline(PyObject *self, PyObject *args) {
+    Py_ssize_t i;
+    PyObject *src;
+    Py_ssize_t len;
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    _skip_at_newline(&i, src, len);
+
+    return PyLong_FromSsize_t(i);
+}
+
+PyObject *
+skip_spaces(PyObject *self, PyObject *args) {
+    Py_ssize_t i;
+    PyObject *src;
+    Py_ssize_t len;
+    if (!PyArg_ParseTuple(args, "nOn", &i, &src, &len)) {
+        return NULL;
+    }
+
+    _skip_sp(&i, src, len);
+
+    return PyLong_FromSsize_t(i);
+}
+
 static PyMethodDef MyMethods[] = {
     {"parse_key_value", parse_key_value, METH_VARARGS, "Parse key and value."},
     {"parse_css_block", parse_css_block, METH_VARARGS, "Parse CSS block."},
@@ -1422,6 +1474,8 @@ static PyMethodDef MyMethods[] = {
     {"parse_list", parse_list, METH_VARARGS, "Parse list."},
     {"parse_dict", parse_dict, METH_VARARGS, "Parse list."},
     {"parse_csv_line", (PyCFunction) parse_csv_line, METH_VARARGS | METH_KEYWORDS, "Parse CSV line."},
+    {"skip_at_newline", skip_at_newline, METH_VARARGS, "Parse list."},
+    {"skip_spaces", skip_spaces, METH_VARARGS, "Parse list."},
     {NULL, NULL, 0, NULL}
 };
 
