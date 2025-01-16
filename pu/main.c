@@ -166,6 +166,12 @@ _parse_css_key(
     return true;
 }
 
+enum {
+    _STR,
+    _INT,
+    _FLOAT,
+};
+
 static bool
 _parse_value(
     Py_ssize_t *index,
@@ -174,13 +180,15 @@ _parse_value(
     Py_UCS4 buf[],
     size_t buf_size,
     size_t *buf_len,
-    const char *end  // "\n" or ">" or ",]"
+    const char *end,  // "\n" or ">" or ",]"
+    int *type
 ) {
     bool ret = true;
     Py_ssize_t i = *index;
     int m = 0;
     *buf_len = 0;
     int quote = 0;
+    int ndot = 0;
 
     for (; i < len; i++) {
         int c = PyUnicode_READ_CHAR(src, i);
@@ -190,6 +198,7 @@ _parse_value(
             if (c == '"' || c == '\'') {
                 m = 100;
                 quote = c;
+                *type = _STR;
             } else if (strchr(end, c)) {
                 goto done;
             } else if (Py_UNICODE_ISSPACE(c)) {
@@ -202,6 +211,12 @@ _parse_value(
                 buf[*buf_len] = c;
                 (*buf_len)++;
                 m = 50;
+                if (isdigit(c)) {
+                    *type = _INT;
+                } else if (c == '.') {
+                    *type = _FLOAT;
+                    ndot++;
+                }
             }
             break;
         case 50:
@@ -216,6 +231,15 @@ _parse_value(
                 }
                 buf[*buf_len] = c;
                 (*buf_len)++;
+                if (isdigit(c)) {
+                    // pass
+                } else if (c == '.') {
+                    if (ndot > 0) {
+                        *type = _STR;
+                    } else {
+                        *type = _FLOAT;
+                    }
+                }
             }
             break;
         case 100:
@@ -255,6 +279,41 @@ done:
 }
 
 static PyObject *
+ucs4_to_obj(Py_UCS4 ary[], size_t len, int type) {
+    #undef _BUF_SIZE
+    #define _BUF_SIZE 1024
+    char buf[_BUF_SIZE];
+    size_t i;
+
+    for (i = 0; i < len && i < _BUF_SIZE; i++) {
+        buf[i] = (char)ary[i];
+    }
+    buf[i] = '\0';
+
+    if (type == _FLOAT) {
+        // float型として変換
+        char* endptr;
+        double value = strtod(buf, &endptr);
+        if (endptr == buf) {
+            PyErr_SetString(PyExc_ValueError, "could not convert string to float");
+            return NULL;
+        }
+        return PyFloat_FromDouble(value);
+    } else if (type == _INT) {
+        // long型として変換
+        char* endptr;
+        long value = strtol(buf, &endptr, 10);
+        if (endptr == buf) {
+            PyErr_SetString(PyExc_ValueError, "could not convert string to long");
+            return NULL;
+        }
+        return PyLong_FromLong(value);
+    } else {
+        return PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, ary, len);
+    }
+}
+
+static PyObject *
 _parse_ovalue(Py_ssize_t *index, PyObject *src, Py_ssize_t len, const char *end) {
     Py_ssize_t i = *index;
     #undef _BUF_SIZE 
@@ -288,17 +347,15 @@ _parse_ovalue(Py_ssize_t *index, PyObject *src, Py_ssize_t len, const char *end)
         } else if (Py_UNICODE_ISSPACE(c)) {
             // pass
         } else {
+            int type;
             if (!_parse_value(
                 &i, src, len,
                 val, _BUF_SIZE, &val_len,
-                end)) {
+                end, &type)) {
                 return NULL;
             }
 
-            o = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, val, val_len);
-            if (!o) {
-                return NULL;
-            }            
+            o = ucs4_to_obj(val, val_len, type);
             break;
         }
     }
@@ -432,8 +489,9 @@ _parse_key_value(
             if (c == sep) {
                 i++;
                 _skip_sp(&i, src, len);
+                int type;
                 if (!_parse_value(&i, src, len, 
-                    val, val_size, val_len, end)) {
+                    val, val_size, val_len, end, &type)) {
                     break;
                 }
                 break;

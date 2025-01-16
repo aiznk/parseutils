@@ -5,39 +5,39 @@ class Test(unittest.TestCase):
 	def test_parse_dict(self):
 		src = '{ "hige": 123, \'moe\': \'223\'}'
 		j, d = pu.parse_dict(0, src, len(src))
-		self.assertEqual(d['hige'], '123')
+		self.assertEqual(d['hige'], 123)
 		self.assertEqual(d['moe'], '223')
 
-		src = '{"hige":123,\'moe\':\'223\'}'
+		src = '{"hige":3.14,\'moe\':\'223\'}'
 		j, d = pu.parse_dict(0, src, len(src))
-		self.assertEqual(d['hige'], '123')
+		self.assertEqual(d['hige'], 3.14)
 		self.assertEqual(d['moe'], '223')
 
 		src = '{ "hige": [1, 2, 3], \'moe\': { "aaa": 1, "bbb": 2 }}'
 		j, d = pu.parse_dict(0, src, len(src))
-		self.assertEqual(d['hige'][0], '1')
-		self.assertEqual(d['hige'][1], '2')
-		self.assertEqual(d['hige'][2], '3')
-		self.assertEqual(d['moe']['aaa'], '1')
-		self.assertEqual(d['moe']['bbb'], '2')
+		self.assertEqual(d['hige'][0], 1)
+		self.assertEqual(d['hige'][1], 2)
+		self.assertEqual(d['hige'][2], 3)
+		self.assertEqual(d['moe']['aaa'], 1)
+		self.assertEqual(d['moe']['bbb'], 2)
 
 	def test_parse_list(self):
 		src = '[1, 3.14, "abc", \'def\']'
 		j, lis = pu.parse_list(0, src, len(src))
-		self.assertEqual(lis[0], '1')
-		self.assertEqual(lis[1], '3.14')
+		self.assertEqual(lis[0], 1)
+		self.assertEqual(lis[1], 3.14)
 		self.assertEqual(lis[2], 'abc')
 		self.assertEqual(lis[3], 'def')
 
 		src = '[1, 3.14, [7, 8, 9], {"aa": 10, "bb": 11}]'
 		j, lis = pu.parse_list(0, src, len(src))
-		self.assertEqual(lis[0], '1')
-		self.assertEqual(lis[1], '3.14')
-		self.assertEqual(lis[2][0], '7')
-		self.assertEqual(lis[2][1], '8')
-		self.assertEqual(lis[2][2], '9')
-		self.assertEqual(lis[3]['aa'], '10')
-		self.assertEqual(lis[3]['bb'], '11')
+		self.assertEqual(lis[0], 1)
+		self.assertEqual(lis[1], 3.14)
+		self.assertEqual(lis[2][0], 7)
+		self.assertEqual(lis[2][1], 8)
+		self.assertEqual(lis[2][2], 9)
+		self.assertEqual(lis[3]['aa'], 10)
+		self.assertEqual(lis[3]['bb'], 11)
 
 	def test_ini(self):
 		src = '''
